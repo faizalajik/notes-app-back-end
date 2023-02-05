@@ -6,9 +6,10 @@ const NotFoundError = require('../../exceptions/NotFoundError');
 const AuthorizationError = require('../../exceptions/AuthorizationError');
  
 class NotesService {
-  constructor(collaborationService) {
+  constructor(collaborationService, cacheService) {
     this._pool = new Pool();
     this._collaborationService = collaborationService;
+    this._cacheService = cacheService;
   }
 
   async verifyNoteAccess(noteId, userId) {
@@ -41,6 +42,8 @@ class NotesService {
     if (!result.rows[0].id) {
       throw new InvariantError('Catatan gagal ditambahkan');
     }
+
+     await this._cacheService.delete(`notes:${owner}`);
  
     return result.rows[0].id;
   }
@@ -54,7 +57,9 @@ class NotesService {
       values: [owner],
     };
     const result = await this._pool.query(query);
-    return result.rows.map(mapDBToModel);
+    const mappedResult = result.rows.map(mapDBToModel);
+    await this._cacheService.set(`notes:${owner}`, JSON.stringify(mappedResult));
+    return mappedResult;
   }
 
   async getNoteById(id) {
